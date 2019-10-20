@@ -1,0 +1,66 @@
+#load in libraries
+library(rgdal)
+library(raster)
+library(adehabitatHR)
+
+#### DATA PREPARATION ####
+#load in data 
+data <- read.csv("2018_no_meancoordinates_xy.csv", header=TRUE, sep=",")
+
+#subset the data by x,y, and id columns
+xlocs <- data$ï..xstart
+ylocs <- data$ystart
+pointid <- data$Time
+
+#create a table of just x,y, and id
+datapoints <- cbind(xlocs, ylocs, pointid)
+
+#omit na. values
+datapoints2 <- na.omit(datapoints)
+
+#save as a dataframe
+df <- data.frame(datapoints2)
+
+# turn the df into a spatial points dataframe based on the x and y values - project to the right coord.system
+locs.spatial<- SpatialPointsDataFrame(df[,1:2], df, proj4string = CRS("+init=epsg:26911"))
+#plot the spatial points
+plot(locs.spatial)
+
+#read in the boundary of the data 
+shp<-readOGR(".","ravdol3")
+#geographic extent of the shape - based on the study site
+Extent <- extent(shp)
+#size of each grid cell in meters
+resolution <- 150
+
+#create an empty grid
+x <- seq(Extent[1],Extent[2],by=resolution)  
+y <- seq(Extent[3],Extent[4],by=resolution) 
+xy1 <- expand.grid(x=x,y=y) 
+coordinates(xy1) <- ~x+y 
+gridded(xy1) <- TRUE 
+plot(xy1)
+plot(shp, border="black", add=T)
+
+# run the kde using the grid just created
+all <- kernelUD(locs.spatial, h="href", grid = xy1)
+
+#all <- kernelUD(locs.spatial, h="href", grid = xy1) for the second one and then in the plot kde
+# and study site put the ab in plot
+
+plot(all)
+
+
+# clip the kde by the shape of the study site 
+ab<- mask(all, shp)
+
+# plot the kde and study site with boundaries showing where 75, 95, and 50% of the points, respectively, lie
+plot(ab, col=terrain.colors(80), main ="Kernel Density Estimation", ylab="y_coordinate", 
+     xlab="x_coordinate")
+plot(shp, border="black", add=T)
+plot(getverticeshr(all, percent = 25), add = TRUE, border="white")
+plot(getverticeshr(all, percent = 5), add = TRUE, border="red")
+plot(getverticeshr(all, percent = 50), add = TRUE, border="blue")
+
+
+
